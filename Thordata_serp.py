@@ -20,10 +20,10 @@ import math
 class SerpAPITester:
     """SerpAPI性能测试类"""
 
-    # SerpAPI支持的所有引擎
+    # SerpAPI支持的所有引擎（与最新分支保持一致）
     SUPPORTED_ENGINES = [
-        'google', 'google_local', 'google_images',
-        'google_videos', 'google_news', 'google_shopping'
+        'google_play', 'google_jobs', 'google_scholar',
+        'google_finance', 'google_patents'
     ]
 
     def __init__(self, api_key, save_details=False):
@@ -63,29 +63,25 @@ class SerpAPITester:
 
         # 参考 SerpApi 测试脚本：为不同引擎配置更贴合场景的关键词
         self.engine_keywords = {
-            "google": [
-                "latest tech news", "best smartphones 2025", "python tutorials",
-                "weather tomorrow", "coffee shops near me", "football scores"
+            "google_play": [
+                "fitness tracker apps", "language learning app", "budget planner",
+                "photo editor", "weather forecast app", "productivity timer"
             ],
-            "google_local": [
-                "restaurants near me", "24 hour pharmacy", "car repair nearby",
-                "best coffee shop", "museum near me", "local gym"
+            "google_jobs": [
+                "software engineer remote", "data scientist", "product manager",
+                "ux designer", "devops engineer", "marketing manager"
             ],
-            "google_images": [
-                "sunset wallpaper", "cute cats", "modern architecture",
-                "basketball action shot", "4k nature", "space nebula"
+            "google_scholar": [
+                "large language models", "computer vision", "quantum computing",
+                "reinforcement learning", "climate change research", "bioinformatics"
             ],
-            "google_videos": [
-                "ai tutorials", "travel vlog paris", "python conference talk",
-                "movie trailers 2025", "best productivity apps"
+            "google_finance": [
+                "AAPL stock", "GOOG share price", "TSLA market cap",
+                "USD to EUR", "NASDAQ index", "S&P 500 performance"
             ],
-            "google_news": [
-                "global economy", "ai regulation", "stock market today",
-                "climate change", "tech company earnings"
-            ],
-            "google_shopping": [
-                "wireless headphones", "gaming laptop", "mirrorless camera",
-                "smartwatch deals", "running shoes", "office chair"
+            "google_patents": [
+                "wireless charging", "autonomous vehicle sensor", "3d printing",
+                "battery cooling system", "quantum cryptography", "renewable energy storage"
             ],
         }
 
