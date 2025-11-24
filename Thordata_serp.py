@@ -185,6 +185,26 @@ class SerpAPITester:
             if "error" in response_json:
                 return response_json["error"]
 
+            # 部分接口会将错误信息放在 data 字段
+            if "data" in response_json:
+                data_value = response_json["data"]
+                code_value = response_json.get("code")
+
+                def _to_string(value):
+                    if isinstance(value, (str, int, float)):
+                        return str(value)
+                    try:
+                        return json.dumps(value, ensure_ascii=False)
+                    except Exception:
+                        return None
+
+                data_message = _to_string(data_value)
+
+                if data_message and code_value is not None:
+                    return f"code:{code_value}, {data_message}"
+                if data_message:
+                    return data_message
+
             # 非成功：检查 search_metadata 状态
             status = response_json.get("search_metadata", {}).get("status")
             if status and status != "Success":
