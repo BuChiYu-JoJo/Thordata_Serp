@@ -20,10 +20,10 @@ import math
 class SerpAPITester:
     """SerpAPI性能测试类"""
 
-    # SerpAPI支持的所有引擎
+    # SerpAPI支持的所有引擎（与最新分支保持一致）
     SUPPORTED_ENGINES = [
-        'google', 'google_local', 'google_images',
-        'google_videos', 'google_news', 'google_shopping'
+        'google_play', 'google_jobs', 'google_scholar',
+        'google_finance', 'google_patents'
     ]
 
     def __init__(self, api_key, save_details=False):
@@ -37,6 +37,7 @@ class SerpAPITester:
         self.api_key = api_key
         self.host = "scraperapi.thordata.com"
         self.save_details = save_details
+        # 默认关键词池，当引擎未配置专属关键词时回退使用
         self.keyword_pool = [
             "pizza", "coffee", "restaurant", "weather", "news",
             "hotel", "flight", "car", "phone", "laptop",
@@ -60,6 +61,30 @@ class SerpAPITester:
             "books best seller", "novels", "ebooks"
         ]
 
+        # 参考 SerpApi 测试脚本：为不同引擎配置更贴合场景的关键词
+        self.engine_keywords = {
+            "google_play": [
+                "fitness tracker apps", "language learning app", "budget planner",
+                "photo editor", "weather forecast app", "productivity timer"
+            ],
+            "google_jobs": [
+                "software engineer remote", "data scientist", "product manager",
+                "ux designer", "devops engineer", "marketing manager"
+            ],
+            "google_scholar": [
+                "large language models", "computer vision", "quantum computing",
+                "reinforcement learning", "climate change research", "bioinformatics"
+            ],
+            "google_finance": [
+                "AAPL stock", "GOOG share price", "TSLA market cap",
+                "USD to EUR", "NASDAQ index", "S&P 500 performance"
+            ],
+            "google_patents": [
+                "wireless charging", "autonomous vehicle sensor", "3d printing",
+                "battery cooling system", "quantum cryptography", "renewable energy storage"
+            ],
+        }
+
     def make_request(self, engine, query):
         """
         发送单个API请求并测量准确的响应时间
@@ -73,7 +98,7 @@ class SerpAPITester:
         """
         result = {
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'product': 'SerpAPI',
+            'product': 'Thordata',
             'engine': engine,
             'query': query,
             'status_code': None,
@@ -185,6 +210,26 @@ class SerpAPITester:
             if "error" in response_json:
                 return response_json["error"]
 
+            # 部分接口会将错误信息放在 data 字段
+            if "data" in response_json:
+                data_value = response_json["data"]
+                code_value = response_json.get("code")
+
+                def _to_string(value):
+                    if isinstance(value, (str, int, float)):
+                        return str(value)
+                    try:
+                        return json.dumps(value, ensure_ascii=False)
+                    except Exception:
+                        return None
+
+                data_message = _to_string(data_value)
+
+                if data_message and code_value is not None:
+                    return f"code:{code_value}, {data_message}"
+                if data_message:
+                    return data_message
+
             # 非成功：检查 search_metadata 状态
             status = response_json.get("search_metadata", {}).get("status")
             if status and status != "Success":
@@ -238,13 +283,13 @@ class SerpAPITester:
         """
         results = []
 
-        # 如果未指定query，使用随机关键词
+        # 如果未指定query，按引擎配置选择关键词
         queries = []
         if query:
             queries = [query] * num_requests
         else:
-            # 循环使用关键词池
-            queries = [self.keyword_pool[i % len(self.keyword_pool)] for i in range(num_requests)]
+            engine_keywords = self.engine_keywords.get(engine, self.keyword_pool)
+            queries = [engine_keywords[i % len(engine_keywords)] for i in range(num_requests)]
 
         print(f"\n开始测试引擎: {engine}")
         print(f"  总请求数: {num_requests}")
@@ -316,7 +361,7 @@ class SerpAPITester:
 
                 # 计算统计数据
                 stats = self._calculate_statistics(
-                    'SerpAPI', engine, results, num_requests_per_engine,
+                    'Thordata', engine, results, num_requests_per_engine,
                     concurrency, total_duration
                 )
                 all_statistics.append(stats)
@@ -397,7 +442,7 @@ class SerpAPITester:
             engine: 引擎名称
             results: 请求结果列表
         """
-        filename = f"serpapi_{engine}_detailed_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        filename = f"thordata_{engine}_detailed_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
 
         fieldnames = [
             'timestamp', 'product', 'engine', 'query', 'status_code',
@@ -411,7 +456,7 @@ class SerpAPITester:
 
         print(f"  详细记录已保存到: {filename}")
 
-    def save_summary_statistics(self, statistics, filename='serpapi_summary_statistics.csv'):
+    def save_summary_statistics(self, statistics, filename='thordata_summary_statistics.csv'):
         """
         保存汇总统计表
 
