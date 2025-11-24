@@ -37,6 +37,7 @@ class SerpAPITester:
         self.api_key = api_key
         self.host = "scraperapi.thordata.com"
         self.save_details = save_details
+        # 默认关键词池，当引擎未配置专属关键词时回退使用
         self.keyword_pool = [
             "pizza", "coffee", "restaurant", "weather", "news",
             "hotel", "flight", "car", "phone", "laptop",
@@ -60,6 +61,34 @@ class SerpAPITester:
             "books best seller", "novels", "ebooks"
         ]
 
+        # 参考 SerpApi 测试脚本：为不同引擎配置更贴合场景的关键词
+        self.engine_keywords = {
+            "google": [
+                "latest tech news", "best smartphones 2025", "python tutorials",
+                "weather tomorrow", "coffee shops near me", "football scores"
+            ],
+            "google_local": [
+                "restaurants near me", "24 hour pharmacy", "car repair nearby",
+                "best coffee shop", "museum near me", "local gym"
+            ],
+            "google_images": [
+                "sunset wallpaper", "cute cats", "modern architecture",
+                "basketball action shot", "4k nature", "space nebula"
+            ],
+            "google_videos": [
+                "ai tutorials", "travel vlog paris", "python conference talk",
+                "movie trailers 2025", "best productivity apps"
+            ],
+            "google_news": [
+                "global economy", "ai regulation", "stock market today",
+                "climate change", "tech company earnings"
+            ],
+            "google_shopping": [
+                "wireless headphones", "gaming laptop", "mirrorless camera",
+                "smartwatch deals", "running shoes", "office chair"
+            ],
+        }
+
     def make_request(self, engine, query):
         """
         发送单个API请求并测量准确的响应时间
@@ -73,7 +102,7 @@ class SerpAPITester:
         """
         result = {
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'product': 'SerpAPI',
+            'product': 'Thordata',
             'engine': engine,
             'query': query,
             'status_code': None,
@@ -258,13 +287,13 @@ class SerpAPITester:
         """
         results = []
 
-        # 如果未指定query，使用随机关键词
+        # 如果未指定query，按引擎配置选择关键词
         queries = []
         if query:
             queries = [query] * num_requests
         else:
-            # 循环使用关键词池
-            queries = [self.keyword_pool[i % len(self.keyword_pool)] for i in range(num_requests)]
+            engine_keywords = self.engine_keywords.get(engine, self.keyword_pool)
+            queries = [engine_keywords[i % len(engine_keywords)] for i in range(num_requests)]
 
         print(f"\n开始测试引擎: {engine}")
         print(f"  总请求数: {num_requests}")
@@ -336,7 +365,7 @@ class SerpAPITester:
 
                 # 计算统计数据
                 stats = self._calculate_statistics(
-                    'SerpAPI', engine, results, num_requests_per_engine,
+                    'Thordata', engine, results, num_requests_per_engine,
                     concurrency, total_duration
                 )
                 all_statistics.append(stats)
@@ -417,7 +446,7 @@ class SerpAPITester:
             engine: 引擎名称
             results: 请求结果列表
         """
-        filename = f"serpapi_{engine}_detailed_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        filename = f"thordata_{engine}_detailed_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
 
         fieldnames = [
             'timestamp', 'product', 'engine', 'query', 'status_code',
@@ -431,7 +460,7 @@ class SerpAPITester:
 
         print(f"  详细记录已保存到: {filename}")
 
-    def save_summary_statistics(self, statistics, filename='serpapi_summary_statistics.csv'):
+    def save_summary_statistics(self, statistics, filename='thordata_summary_statistics.csv'):
         """
         保存汇总统计表
 
