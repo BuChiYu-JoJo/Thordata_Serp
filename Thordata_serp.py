@@ -10,6 +10,7 @@ import time
 import json
 import argparse
 import concurrent.futures
+import random
 from urllib.parse import urlencode, urlparse
 from datetime import datetime
 from collections import defaultdict
@@ -23,7 +24,9 @@ class SerpAPITester:
     # SerpAPI支持的所有引擎（与最新分支保持一致）
     SUPPORTED_ENGINES = [
         'google_play', 'google_jobs', 'google_scholar',
-        'google_finance', 'google_patents'
+        'google_finance', 'google_patents', 'google_lens',
+        'google_flights', 'google_trends', 'google_hotels',
+        'google_maps'
     ]
 
     def __init__(self, api_key, save_details=False):
@@ -93,6 +96,160 @@ class SerpAPITester:
                 "drone delivery", "medical imaging device",
                 "wireless charging", "vr headset optics",
                 "robotic arm control", "quantum encryption"
+            ],
+            "google_lens": [
+                "https://i.imgur.com/HBrB8p0.png",
+                "https://picsum.photos/800/500",
+                "https://picsum.photos/600/400",
+                "https://picsum.photos/300/300",
+                "https://picsum.photos/1200/800",
+                "https://picsum.photos/1080/720",
+                "https://loremflickr.com/800/600",
+                "https://loremflickr.com/640/480",
+                "https://loremflickr.com/1024/768",
+                "https://loremflickr.com/500/600",
+                "https://loremflickr.com/1200/900",
+                "https://images.unsplash.com/photo-1503023345310-bd7c1de61c7d",
+                "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e",
+                "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee",
+                "https://images.unsplash.com/photo-1519682577862-22b62b24e493",
+                "https://images.unsplash.com/photo-1524504388940-b1c1722653e1"
+            ],
+            "google_flights": [
+                {
+                    "hl": "en",
+                    "gl": "us",
+                    "departure_id": "PEK",
+                    "arrival_id": "AUS",
+                    "outbound_date": "2025-11-27",
+                    "return_date": "2025-12-03",
+                    "currency": "USD"
+                },
+                {
+                    "hl": "en",
+                    "gl": "us",
+                    "departure_id": "PEK",
+                    "arrival_id": "AUS",
+                    "outbound_date": "2025-11-28",
+                    "return_date": "2025-12-04",
+                    "currency": "USD"
+                },
+                {
+                    "hl": "en",
+                    "gl": "us",
+                    "departure_id": "PEK",
+                    "arrival_id": "AUS",
+                    "outbound_date": "2025-11-29",
+                    "return_date": "2025-12-05",
+                    "currency": "USD"
+                },
+                {
+                    "hl": "en",
+                    "gl": "us",
+                    "departure_id": "PEK",
+                    "arrival_id": "AUS",
+                    "outbound_date": "2025-11-30",
+                    "return_date": "2025-12-06",
+                    "currency": "USD"
+                },
+                {
+                    "hl": "en",
+                    "gl": "us",
+                    "departure_id": "PEK",
+                    "arrival_id": "AUS",
+                    "outbound_date": "2025-12-01",
+                    "return_date": "2025-12-07",
+                    "currency": "USD"
+                },
+                {
+                    "hl": "en",
+                    "gl": "us",
+                    "departure_id": "PEK",
+                    "arrival_id": "AUS",
+                    "outbound_date": "2025-12-27",
+                    "return_date": "2025-12-30",
+                    "currency": "USD"
+                },
+                {
+                    "hl": "en",
+                    "gl": "us",
+                    "departure_id": "PEK",
+                    "arrival_id": "AUS",
+                    "outbound_date": "2025-12-07",
+                    "return_date": "2025-12-15",
+                    "currency": "USD"
+                }
+            ],
+            "google_hotels": [
+                {
+                    "q": "Bali Resorts",
+                    "check_in_date": "2025-11-27",
+                    "check_out_date": "2025-11-28"
+                },
+                {
+                    "q": "Tokyo luxury hotels",
+                    "check_in_date": "2025-12-15",
+                    "check_out_date": "2025-12-20"
+                },
+                {
+                    "q": "New York boutique hotels",
+                    "check_in_date": "2025-12-22",
+                    "check_out_date": "2025-12-26"
+                },
+                {
+                    "q": "Paris family hotels",
+                    "check_in_date": "2026-01-05",
+                    "check_out_date": "2026-01-09"
+                },
+                {
+                    "q": "Sydney beach resorts",
+                    "check_in_date": "2026-02-10",
+                    "check_out_date": "2026-02-15"
+                }
+            ],
+            "google_trends": [
+                {
+                    "q": "coffee,milk,bread,pasta,steak",
+                    "data_type": "TIMESERIES"
+                },
+                {
+                    "q": "ai,blockchain,cloud,vr,5g",
+                    "data_type": "TIMESERIES"
+                },
+                {
+                    "q": "python,java,go,rust,typescript",
+                    "data_type": "TIMESERIES"
+                },
+                {
+                    "q": "nba,nfl,mlb,nhl,ufc",
+                    "data_type": "TIMESERIES"
+                },
+                {
+                    "q": "bitcoin,ethereum,solana,cardano,ripple",
+                    "data_type": "TIMESERIES"
+                }
+            ],
+            "google_maps": [
+                {
+                    "q": "pizza",
+                    "type": "search"
+                },
+                {
+                    "q": "coffee",
+                    "type": "search"
+                },
+                {
+                    "q": "restaurant",
+                    "type": "search"
+                },
+                {
+                    "q": "hotel",
+                    "type": "search"
+                },
+                {
+                    "q": "gym",
+                    "type": "search"
+                }
             ]
         }
 
@@ -111,7 +268,7 @@ class SerpAPITester:
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'product': 'Thordata',
             'engine': engine,
-            'query': query,
+            'query': json.dumps(query, ensure_ascii=False) if isinstance(query, dict) else query,
             'status_code': None,
             'response_time': None,
             'response_size': None,
@@ -125,10 +282,24 @@ class SerpAPITester:
         try:
             params = {
                 "engine": engine,
-                "q": query,
                 "json": "1",
                 "no_cache": "true"
             }
+
+            # 根据不同引擎处理查询参数
+            if engine == "google_lens":
+                params["url"] = query
+            elif engine in {"google_flights", "google_trends", "google_hotels", "google_maps"}:
+                if not isinstance(query, dict):
+                    raise ValueError(f"{engine} 查询参数必须为字典类型")
+                if engine in {"google_trends", "google_hotels"} and not query.get("q"):
+                    raise ValueError(f"{engine} 参数缺少必填项: q")
+                if engine == "google_maps" and not query.get("type"):
+                    raise ValueError(f"{engine} 参数缺少必填项: type")
+                params.update(query)
+            else:
+                params["q"] = query
+
             payload = urlencode(params)
 
             headers = {
@@ -299,8 +470,11 @@ class SerpAPITester:
         if query:
             queries = [query] * num_requests
         else:
-            engine_keywords = self.engine_keywords.get(engine, self.keyword_pool)
-            queries = [engine_keywords[i % len(engine_keywords)] for i in range(num_requests)]
+            keyword_source = self.engine_keywords.get(engine, self.keyword_pool)
+            if engine in {"google_lens", "google_flights", "google_trends", "google_hotels", "google_maps"}:
+                queries = [random.choice(keyword_source) for _ in range(num_requests)]
+            else:
+                queries = [keyword_source[i % len(keyword_source)] for i in range(num_requests)]
 
         print(f"\n开始测试引擎: {engine}")
         print(f"  总请求数: {num_requests}")
