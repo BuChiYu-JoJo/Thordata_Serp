@@ -21,14 +21,15 @@ import math
 class SerpAPITester:
     """SerpAPI性能测试类"""
 
-    # SerpAPI支持的所有引擎（与最新分支保持一致）
+    # SerpAPI支持的所有引擎
     SUPPORTED_ENGINES = [
-#        'google_play', 'google_jobs', 'google_scholar',
-#        'google_finance', 'google_patents', 
-        'google_lens',
-        'google_flights', 'google_trends', 
-#        'google_hotels',
-        'google_maps'
+        'google_play', 'google_jobs', 'google_scholar',
+        'google_finance', 'google_patents', 'google_lens',
+        'google_flights', 'google_trends', 'google_hotels',
+        'google_maps',
+        # 新增通用搜索引擎支持（使用默认参数池/默认行为）
+        'bing', 'bing_images', 'bing_videos', 'bing_news', 'bing_maps', 'bing_shopping',
+        'yandex', 'duckduckgo'
     ]
 
     def __init__(self, api_key, save_details=False):
@@ -111,11 +112,11 @@ class SerpAPITester:
                 "https://loremflickr.com/1024/768",
                 "https://loremflickr.com/500/600",
                 "https://loremflickr.com/1200/900",
-                "https://images.unsplash.com/photo-1503023345310-bd7c1de61c7d",
-                "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e",
-                "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee",
-                "https://images.unsplash.com/photo-1519682577862-22b62b24e493",
-                "https://images.unsplash.com/photo-1524504388940-b1c1722653e1"
+    	        "https://images.unsplash.com/photo-1503023345310-bd7c1de61c7d",
+    	        "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e",
+    	        "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee",
+    	        "https://images.unsplash.com/photo-1519682577862-22b62b24e493",
+    	        "https://images.unsplash.com/photo-1524504388940-b1c1722653e1"
             ],
             "google_flights": [
                 {
@@ -211,55 +212,23 @@ class SerpAPITester:
             ],
             "google_trends": [
                 {
-                    "q": "coffee",
+                    "q": "coffee,milk,bread,pasta,steak",
                     "data_type": "TIMESERIES"
                 },
                 {
-                    "q": "milk",
+                    "q": "ai,blockchain,cloud,vr,5g",
                     "data_type": "TIMESERIES"
                 },
                 {
-                    "q": "bread",
+                    "q": "python,java,go,rust,typescript",
                     "data_type": "TIMESERIES"
                 },
                 {
-                    "q": "pasta",
+                    "q": "nba,nfl,mlb,nhl,ufc",
                     "data_type": "TIMESERIES"
                 },
                 {
-                    "q": "steak",
-                    "data_type": "TIMESERIES"
-                },
-                {
-                    "q": "ai",
-                    "data_type": "TIMESERIES"
-                },
-                {
-                    "q": "vr",
-                    "data_type": "TIMESERIES"
-                },
-                {
-                    "q": "5g",
-                    "data_type": "TIMESERIES"
-                },
-                {
-                    "q": "cloud",
-                    "data_type": "TIMESERIES"
-                },
-                {
-                    "q": "python,java",
-                    "data_type": "TIMESERIES"
-                },
-                {
-                    "q": "go,rust",
-                    "data_type": "TIMESERIES"
-                },
-                {
-                    "q": "nba,ufc",
-                    "data_type": "TIMESERIES"
-                },
-                {
-                    "q": "bitcoin",
+                    "q": "bitcoin,ethereum,solana,cardano,ripple",
                     "data_type": "TIMESERIES"
                 }
             ],
@@ -284,6 +253,42 @@ class SerpAPITester:
                     "q": "gym",
                     "type": "search"
                 }
+            ],
+            # bing_maps 关键词池：单个词（不再是组合短语）
+            "bing_maps": [
+                "restaurant",
+                "coffee",
+                "gas",
+                "hospital",
+                "parking",
+                "ev",
+                "theater",
+                "gym",
+                "hotels",
+                "museums",
+                "transit",
+                "pharmacy",
+                "airport",
+                "mall",
+                "bike"
+            ],
+            # bing_shopping 关键词池：单个词商品/品牌/类目
+            "bing_shopping": [
+                "headphones",
+                "tv",
+                "laptop",
+                "nike",
+                "smartphone",
+                "bicycle",
+                "coffee",
+                "chair",
+                "camera",
+                "stroller",
+                "beans",
+                "jacket",
+                "sneakers",
+                "smartwatch",
+                "charger"
             ]
         }
 
@@ -323,6 +328,10 @@ class SerpAPITester:
             # 根据不同引擎处理查询参数
             if engine == "google_lens":
                 params["url"] = query
+            # yandex 使用 text 参数
+            elif engine == "yandex":
+                params["text"] = query
+            # 以下引擎需要 dict 型 query 并将其展开为参数
             elif engine in {"google_flights", "google_trends", "google_hotels", "google_maps"}:
                 if not isinstance(query, dict):
                     raise ValueError(f"{engine} 查询参数必须为字典类型")
@@ -332,6 +341,7 @@ class SerpAPITester:
                     raise ValueError(f"{engine} 参数缺少必填项: type")
                 params.update(query)
             else:
+                # 默认使用 q 参数（其他新增引擎如 bing/duckduckgo 使用默认 q）
                 params["q"] = query
 
             payload = urlencode(params)
