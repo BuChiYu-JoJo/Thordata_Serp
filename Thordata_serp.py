@@ -21,11 +21,13 @@ import math
 class SerpAPITester:
     """SerpAPI性能测试类"""
 
-    # SerpAPI支持的所有引擎
+    # SerpAPI支持的所有引擎（与最新分支保持一致）
     SUPPORTED_ENGINES = [
-        'google_play', 'google_jobs', 'google_scholar',
-        'google_finance', 'google_patents', 'google_lens',
-        'google_flights', 'google_trends', 'google_hotels',
+#        'google_play', 'google_jobs', 'google_scholar',
+#        'google_finance', 'google_patents', 
+        'google_lens',
+        'google_flights', 'google_trends', 
+#        'google_hotels',
         'google_maps',
         # 新增通用搜索引擎支持（使用默认参数池/默认行为）
         'bing', 'bing_images', 'bing_videos', 'bing_news', 'bing_maps', 'bing_shopping',
@@ -212,23 +214,55 @@ class SerpAPITester:
             ],
             "google_trends": [
                 {
-                    "q": "coffee,milk,bread,pasta,steak",
+                    "q": "coffee",
                     "data_type": "TIMESERIES"
                 },
                 {
-                    "q": "ai,blockchain,cloud,vr,5g",
+                    "q": "milk",
                     "data_type": "TIMESERIES"
                 },
                 {
-                    "q": "python,java,go,rust,typescript",
+                    "q": "bread",
                     "data_type": "TIMESERIES"
                 },
                 {
-                    "q": "nba,nfl,mlb,nhl,ufc",
+                    "q": "pasta",
                     "data_type": "TIMESERIES"
                 },
                 {
-                    "q": "bitcoin,ethereum,solana,cardano,ripple",
+                    "q": "steak",
+                    "data_type": "TIMESERIES"
+                },
+                {
+                    "q": "ai",
+                    "data_type": "TIMESERIES"
+                },
+                {
+                    "q": "vr",
+                    "data_type": "TIMESERIES"
+                },
+                {
+                    "q": "5g",
+                    "data_type": "TIMESERIES"
+                },
+                {
+                    "q": "cloud",
+                    "data_type": "TIMESERIES"
+                },
+                {
+                    "q": "python,java",
+                    "data_type": "TIMESERIES"
+                },
+                {
+                    "q": "go,rust",
+                    "data_type": "TIMESERIES"
+                },
+                {
+                    "q": "nba,ufc",
+                    "data_type": "TIMESERIES"
+                },
+                {
+                    "q": "bitcoin",
                     "data_type": "TIMESERIES"
                 }
             ],
