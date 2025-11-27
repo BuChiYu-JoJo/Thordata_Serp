@@ -112,11 +112,11 @@ class SerpAPITester:
                 "https://loremflickr.com/1024/768",
                 "https://loremflickr.com/500/600",
                 "https://loremflickr.com/1200/900",
-    	        "https://images.unsplash.com/photo-1503023345310-bd7c1de61c7d",
-    	        "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e",
-    	        "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee",
-    	        "https://images.unsplash.com/photo-1519682577862-22b62b24e493",
-    	        "https://images.unsplash.com/photo-1524504388940-b1c1722653e1"
+                "https://images.unsplash.com/photo-1503023345310-bd7c1de61c7d",
+                "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e",
+                "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee",
+                "https://images.unsplash.com/photo-1519682577862-22b62b24e493",
+                "https://images.unsplash.com/photo-1524504388940-b1c1722653e1"
             ],
             "google_flights": [
                 {
