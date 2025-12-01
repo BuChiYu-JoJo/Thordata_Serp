@@ -659,18 +659,25 @@ class SerpAPITester:
             total_time = sum(r['response_time'] for r in successful_results if r['response_time'])
             avg_response_time = round(total_time / len(successful_results), 3)
 
-        # 计算P90延迟 (90th percentile)
+        # 计算P50、P75、P90延迟
+        p50_latency = 0
+        p75_latency = 0
         p90_latency = 0
         if successful_results:
             response_times = sorted([r['response_time'] for r in successful_results if r['response_time']])
             if response_times:
-                # 使用ceil(0.9 × N)计算P90索引
-                p90_index = math.ceil(len(response_times) * 0.9) - 1  # -1因为索引从0开始
-                if p90_index < 0:
-                    p90_index = 0
-                if p90_index >= len(response_times):
-                    p90_index = len(response_times) - 1
-                p90_latency = round(response_times[p90_index], 3)
+                # 使用ceil计算百分位索引
+                def get_percentile_value(times, percentile):
+                    index = math.ceil(len(times) * percentile) - 1  # -1因为索引从0开始
+                    if index < 0:
+                        index = 0
+                    if index >= len(times):
+                        index = len(times) - 1
+                    return round(times[index], 3)
+
+                p50_latency = get_percentile_value(response_times, 0.5)
+                p75_latency = get_percentile_value(response_times, 0.75)
+                p90_latency = get_percentile_value(response_times, 0.9)
 
         # 计算请求速率 (秒/请求)
         request_rate = round(total_duration / total_requests, 3) if total_requests > 0 else 0
@@ -690,6 +697,8 @@ class SerpAPITester:
             '成功次数': success_count,
             '成功率(%)': success_rate,
             '成功平均响应时间(s)': avg_response_time,
+            'P50延迟(s)': p50_latency,
+            'P75延迟(s)': p75_latency,
             'P90延迟(s)': p90_latency,
             '并发完成时间(s)': total_duration,
             '成功平均响应大小(KB)': avg_response_size
@@ -733,7 +742,7 @@ class SerpAPITester:
 
         fieldnames = [
             '产品类别', '引擎', '请求总数', '并发数', '请求速率(s/req)',
-            '成功次数', '成功率(%)', '成功平均响应时间(s)', 'P90延迟(s)',
+            '成功次数', '成功率(%)', '成功平均响应时间(s)', 'P50延迟(s)', 'P75延迟(s)', 'P90延迟(s)',
             '并发完成时间(s)', '成功平均响应大小(KB)'
         ]
 
@@ -757,23 +766,23 @@ class SerpAPITester:
             statistics: 统计数据列表
         """
         print("\n汇总统计表:")
-        print("-" * 160)
+        print("-" * 180)
 
         # 打印表头
         header = f"{'引擎':<20} {'请求数':>8} {'并发':>6} {'速率(s/req)':>12} " \
-                 f"{'成功':>8} {'成功率':>8} {'平均响应(s)':>12} {'P90延迟(s)':>11} {'完成时间(s)':>12} {'响应大小(KB)':>14}"
+                 f"{'成功':>8} {'成功率':>8} {'平均响应(s)':>12} {'P50延迟(s)':>11} {'P75延迟(s)':>11} {'P90延迟(s)':>11} {'完成时间(s)':>12} {'响应大小(KB)':>14}"
         print(header)
-        print("-" * 160)
+        print("-" * 180)
 
         # 打印数据行
         for stat in statistics:
             row = f"{stat['引擎']:<20} {stat['请求总数']:>8} {stat['并发数']:>6} " \
                   f"{stat['请求速率(s/req)']:>12} {stat['成功次数']:>8} " \
                   f"{stat['成功率(%)']:>7}% {stat['成功平均响应时间(s)']:>12} " \
-                  f"{stat['P90延迟(s)']:>11} {stat['并发完成时间(s)']:>12} {stat['成功平均响应大小(KB)']:>14}"
+                  f"{stat['P50延迟(s)']:>11} {stat['P75延迟(s)']:>11} {stat['P90延迟(s)']:>11} {stat['并发完成时间(s)']:>12} {stat['成功平均响应大小(KB)']:>14}"
             print(row)
 
-        print("-" * 160)
+        print("-" * 180)
 
 
 def main():
