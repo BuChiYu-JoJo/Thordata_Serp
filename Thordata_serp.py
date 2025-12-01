@@ -679,8 +679,8 @@ class SerpAPITester:
                 p75_latency = get_percentile_value(response_times, 0.75)
                 p90_latency = get_percentile_value(response_times, 0.9)
 
-        # 计算请求速率 (秒/请求)
-        request_rate = round(total_duration / total_requests, 3) if total_requests > 0 else 0
+        # 计算请求速率 (请求/秒)
+        request_rate = round(total_requests / total_duration, 3) if total_duration > 0 else 0
 
         # 计算成功请求的平均响应大小
         avg_response_size = 0
@@ -693,7 +693,7 @@ class SerpAPITester:
             '引擎': engine,
             '请求总数': total_requests,
             '并发数': concurrency,
-            '请求速率(s/req)': request_rate,
+            '请求速率(req/s)': request_rate,
             '成功次数': success_count,
             '成功率(%)': success_rate,
             '成功平均响应时间(s)': avg_response_time,
@@ -741,7 +741,7 @@ class SerpAPITester:
             return
 
         fieldnames = [
-            '产品类别', '引擎', '请求总数', '并发数', '请求速率(s/req)',
+            '产品类别', '引擎', '请求总数', '并发数', '请求速率(req/s)',
             '成功次数', '成功率(%)', '成功平均响应时间(s)', 'P50延迟(s)', 'P75延迟(s)', 'P90延迟(s)',
             '并发完成时间(s)', '成功平均响应大小(KB)'
         ]
@@ -769,7 +769,7 @@ class SerpAPITester:
         print("-" * 180)
 
         # 打印表头
-        header = f"{'引擎':<20} {'请求数':>8} {'并发':>6} {'速率(s/req)':>12} " \
+        header = f"{'引擎':<20} {'请求数':>8} {'并发':>6} {'速率(req/s)':>12} " \
                  f"{'成功':>8} {'成功率':>8} {'平均响应(s)':>12} {'P50延迟(s)':>11} {'P75延迟(s)':>11} {'P90延迟(s)':>11} {'完成时间(s)':>12} {'响应大小(KB)':>14}"
         print(header)
         print("-" * 180)
@@ -777,7 +777,7 @@ class SerpAPITester:
         # 打印数据行
         for stat in statistics:
             row = f"{stat['引擎']:<20} {stat['请求总数']:>8} {stat['并发数']:>6} " \
-                  f"{stat['请求速率(s/req)']:>12} {stat['成功次数']:>8} " \
+                  f"{stat['请求速率(req/s)']:>12} {stat['成功次数']:>8} " \
                   f"{stat['成功率(%)']:>7}% {stat['成功平均响应时间(s)']:>12} " \
                   f"{stat['P50延迟(s)']:>11} {stat['P75延迟(s)']:>11} {stat['P90延迟(s)']:>11} {stat['并发完成时间(s)']:>12} {stat['成功平均响应大小(KB)']:>14}"
             print(row)
