@@ -11,6 +11,7 @@ import json
 import argparse
 import concurrent.futures
 import random
+import itertools
 from urllib.parse import urlencode, urlparse
 from datetime import datetime
 from collections import defaultdict
@@ -530,13 +531,13 @@ class SerpAPITester:
 
         return ", ".join(summary_parts) if summary_parts else "Success"
 
-    def run_concurrent_test(self, engine, num_requests, concurrency, query=None):
+    def run_concurrent_test(self, engine, duration_seconds, concurrency, query=None):
         """
         运行并发性能测试
 
         Args:
             engine: 搜索引擎名称
-            num_requests: 总请求数
+            duration_seconds: 运行时长（秒）
             concurrency: 并发数
             query: 搜索关键词（可选，默认随机）
 
@@ -544,20 +545,21 @@ class SerpAPITester:
             list: 所有请求结果
         """
         results = []
+        end_time = time.time() + duration_seconds
+        request_counter = itertools.count()
 
         # 如果未指定query，按引擎配置选择关键词
-        queries = []
-        if query:
-            queries = [query] * num_requests
-        else:
+        def next_query():
+            if query is not None:
+                return query
             keyword_source = self.engine_keywords.get(engine, self.keyword_pool)
             if engine in {"google_lens", "google_flights", "google_trends", "google_hotels", "google_maps"}:
-                queries = [random.choice(keyword_source) for _ in range(num_requests)]
-            else:
-                queries = [keyword_source[i % len(keyword_source)] for i in range(num_requests)]
+                return random.choice(keyword_source)
+            idx = next(request_counter)
+            return keyword_source[idx % len(keyword_source)]
 
         print(f"\n开始测试引擎: {engine}")
-        print(f"  总请求数: {num_requests}")
+        print(f"  运行时间: {duration_seconds}秒")
         print(f"  并发数: {concurrency}")
         print(f"  缓存: 禁用 (no_cache=true)")
         print("-" * 80)
@@ -567,43 +569,47 @@ class SerpAPITester:
 
         # 使用线程池进行并发测试
         with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as executor:
-            # 提交所有任务
-            future_to_index = {
-                executor.submit(self.make_request, engine, queries[i]): i
-                for i in range(num_requests)
-            }
+            # 提交并发工作线程
+            futures = [
+                executor.submit(self._run_worker_until, engine, next_query, end_time)
+                for _ in range(concurrency)
+            ]
 
             # 收集结果
-            completed = 0
-            for future in concurrent.futures.as_completed(future_to_index):
-                index = future_to_index[future]
+            for idx, future in enumerate(concurrent.futures.as_completed(futures), 1):
                 try:
-                    result = future.result()
-                    results.append(result)
-                    completed += 1
-
-                    # 显示进度
-                    if completed % max(1, num_requests // 10) == 0 or completed == num_requests:
-                        print(f"  进度: {completed}/{num_requests} 完成")
-
+                    worker_results = future.result()
+                    results.extend(worker_results)
+                    print(f"  线程{idx}完成，处理请求数: {len(worker_results)}")
                 except Exception as e:
-                    print(f"  请求 {index + 1} 异常: {str(e)}")
+                    print(f"  线程 {idx} 异常: {str(e)}")
 
         # 记录并发测试的总结束时间
         total_end_time = time.time()
         total_duration = round(total_end_time - total_start_time, 3)
+        total_requests = len(results)
 
-        print(f"\n并发测试完成，总耗时: {total_duration}秒")
+        print(f"\n并发测试完成，总耗时: {total_duration}秒，总请求数: {total_requests}")
 
-        return results, total_duration
+        return results, total_duration, total_requests
 
-    def run_all_engines_test(self, engines, num_requests_per_engine, concurrency):
+    def _run_worker_until(self, engine, next_query_fn, end_time):
+        """
+        Worker 线程：在截止时间前持续发送请求，不再新增超时请求
+        """
+        worker_results = []
+        while time.time() < end_time:
+            result = self.make_request(engine, next_query_fn())
+            worker_results.append(result)
+        return worker_results
+
+    def run_all_engines_test(self, engines, duration_seconds, concurrency):
         """
         测试多个引擎的性能
 
         Args:
             engines: 要测试的引擎列表
-            num_requests_per_engine: 每个引擎的请求数
+            duration_seconds: 每个引擎的运行时长（秒）
             concurrency: 并发数
 
         Returns:
@@ -618,15 +624,15 @@ class SerpAPITester:
 
         for engine in engines:
             try:
-                results, total_duration = self.run_concurrent_test(
-                    engine, num_requests_per_engine, concurrency
+                results, total_duration, total_requests = self.run_concurrent_test(
+                    engine, duration_seconds, concurrency
                 )
 
                 all_results[engine] = results
 
                 # 计算统计数据
                 stats = self._calculate_statistics(
-                    'Thordata', engine, results, num_requests_per_engine,
+                    'Thordata', engine, results, total_requests,
                     concurrency, total_duration
                 )
                 all_statistics.append(stats)
@@ -661,10 +667,12 @@ class SerpAPITester:
             total_time = sum(r['response_time'] for r in successful_results if r['response_time'])
             avg_response_time = round(total_time / len(successful_results), 3)
 
-        # 计算P50、P75、P90延迟
+        # 计算P50、P75、P90、P95、P99延迟
         p50_latency = 0
         p75_latency = 0
         p90_latency = 0
+        p95_latency = 0
+        p99_latency = 0
         if successful_results:
             response_times = sorted([r['response_time'] for r in successful_results if r['response_time']])
             if response_times:
@@ -680,9 +688,12 @@ class SerpAPITester:
                 p50_latency = get_percentile_value(response_times, 0.5)
                 p75_latency = get_percentile_value(response_times, 0.75)
                 p90_latency = get_percentile_value(response_times, 0.9)
+                p95_latency = get_percentile_value(response_times, 0.95)
+                p99_latency = get_percentile_value(response_times, 0.99)
 
         # 计算请求速率 (请求/秒)
         request_rate = round(total_requests / total_duration, 3) if total_duration > 0 else 0
+        error_rate = round((total_requests - success_count) / total_requests * 100, 2) if total_requests > 0 else 0
 
         # 计算成功请求的平均响应大小
         avg_response_size = 0
@@ -698,10 +709,13 @@ class SerpAPITester:
             '请求速率(req/s)': request_rate,
             '成功次数': success_count,
             '成功率(%)': success_rate,
+            '错误率(%)': error_rate,
             '成功平均响应时间(s)': avg_response_time,
             'P50延迟(s)': p50_latency,
             'P75延迟(s)': p75_latency,
             'P90延迟(s)': p90_latency,
+            'P95延迟(s)': p95_latency,
+            'P99延迟(s)': p99_latency,
             '并发完成时间(s)': total_duration,
             '成功平均响应大小(KB)': avg_response_size
         }
@@ -744,7 +758,8 @@ class SerpAPITester:
 
         fieldnames = [
             '产品类别', '引擎', '请求总数', '并发数', '请求速率(req/s)',
-            '成功次数', '成功率(%)', '成功平均响应时间(s)', 'P50延迟(s)', 'P75延迟(s)', 'P90延迟(s)',
+            '成功次数', '成功率(%)', '错误率(%)', '成功平均响应时间(s)',
+            'P50延迟(s)', 'P75延迟(s)', 'P90延迟(s)', 'P95延迟(s)', 'P99延迟(s)',
             '并发完成时间(s)', '成功平均响应大小(KB)'
         ]
 
@@ -772,7 +787,9 @@ class SerpAPITester:
 
         # 打印表头
         header = f"{'引擎':<20} {'请求数':>8} {'并发':>6} {'速率(req/s)':>12} " \
-                 f"{'成功':>8} {'成功率':>8} {'平均响应(s)':>12} {'P50延迟(s)':>11} {'P75延迟(s)':>11} {'P90延迟(s)':>11} {'完成时间(s)':>12} {'响应大小(KB)':>14}"
+                 f"{'成功':>8} {'成功率':>8} {'错误率':>8} {'平均响应(s)':>12} " \
+                 f"{'P50延迟(s)':>11} {'P75延迟(s)':>11} {'P90延迟(s)':>11} {'P95延迟(s)':>11} {'P99延迟(s)':>11} " \
+                 f"{'完成时间(s)':>12} {'响应大小(KB)':>14}"
         print(header)
         print("-" * 180)
 
@@ -780,8 +797,9 @@ class SerpAPITester:
         for stat in statistics:
             row = f"{stat['引擎']:<20} {stat['请求总数']:>8} {stat['并发数']:>6} " \
                   f"{stat['请求速率(req/s)']:>12} {stat['成功次数']:>8} " \
-                  f"{stat['成功率(%)']:>7}% {stat['成功平均响应时间(s)']:>12} " \
-                  f"{stat['P50延迟(s)']:>11} {stat['P75延迟(s)']:>11} {stat['P90延迟(s)']:>11} {stat['并发完成时间(s)']:>12} {stat['成功平均响应大小(KB)']:>14}"
+                  f"{stat['成功率(%)']:>7}% {stat['错误率(%)']:>7}% {stat['成功平均响应时间(s)']:>12} " \
+                  f"{stat['P50延迟(s)']:>11} {stat['P75延迟(s)']:>11} {stat['P90延迟(s)']:>11} {stat['P95延迟(s)']:>11} {stat['P99延迟(s)']:>11} " \
+                  f"{stat['并发完成时间(s)']:>12} {stat['成功平均响应大小(KB)']:>14}"
             print(row)
 
         print("-" * 180)
@@ -795,16 +813,16 @@ def main():
         epilog="""
 示例用法:
   # 测试单个引擎
-  python serpapi_test.py -k YOUR_API_KEY -e google -n 10 -c 5
+  python serpapi_test.py -k YOUR_API_KEY -e google -t 60 -c 5
 
   # 测试多个引擎
-  python serpapi_test.py -k YOUR_API_KEY -e google bing yahoo -n 20 -c 10
+  python serpapi_test.py -k YOUR_API_KEY -e google bing yahoo -t 120 -c 10
 
   # 测试所有引擎
-  python serpapi_test.py -k YOUR_API_KEY --all-engines -n 10 -c 5
+  python serpapi_test.py -k YOUR_API_KEY --all-engines -t 60 -c 5
 
   # 启用详细CSV记录
-  python serpapi_test.py -k YOUR_API_KEY -e google -n 10 -c 5 --save-details
+  python serpapi_test.py -k YOUR_API_KEY -e google -t 60 -c 5 --save-details
         """
     )
 
@@ -814,8 +832,8 @@ def main():
                         help='要测试的搜索引擎列表')
     parser.add_argument('--all-engines', action='store_true',
                         help='测试所有支持的引擎')
-    parser.add_argument('-n', '--num-requests', type=int, default=10,
-                        help='每个引擎的请求数 (默认: 10)')
+    parser.add_argument('-t', '--duration', type=int, default=60,
+                        help='每个引擎的运行时间(秒) (默认: 60)')
     parser.add_argument('-c', '--concurrency', type=int, default=5,
                         help='并发数 (默认: 5)')
     parser.add_argument('-q', '--query', type=str,
@@ -863,7 +881,7 @@ def main():
 
     # 运行测试
     all_results, all_statistics = tester.run_all_engines_test(
-        engines, args.num_requests, args.concurrency
+        engines, args.duration, args.concurrency
     )
 
     # 保存汇总统计
