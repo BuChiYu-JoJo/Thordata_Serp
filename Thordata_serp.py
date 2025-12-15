@@ -542,18 +542,20 @@ class SerpAPITester:
             query: 搜索关键词（可选，默认随机）
 
         Returns:
-            list: 所有请求结果
+            tuple: (所有请求结果, 总耗时, 总请求数)
         """
         results = []
         end_time = time.time() + duration_seconds
-        request_counter = itertools.count()
+        keyword_source = self.engine_keywords.get(engine, self.keyword_pool) if query is None else None
+        special_engines = {"google_lens", "google_flights", "google_trends", "google_hotels", "google_maps"}
+        use_round_robin = query is None and engine not in special_engines
+        request_counter = itertools.count() if use_round_robin else None
 
         # 如果未指定query，按引擎配置选择关键词
         def next_query():
             if query is not None:
                 return query
-            keyword_source = self.engine_keywords.get(engine, self.keyword_pool)
-            if engine in {"google_lens", "google_flights", "google_trends", "google_hotels", "google_maps"}:
+            if engine in special_engines:
                 return random.choice(keyword_source)
             idx = next(request_counter)
             return keyword_source[idx % len(keyword_source)]
@@ -598,9 +600,16 @@ class SerpAPITester:
         Worker 线程：在截止时间前持续发送请求，不再新增超时请求
         """
         worker_results = []
-        while time.time() < end_time:
+        if time.time() >= end_time:
+            return worker_results
+
+        while True:
+            if time.time() >= end_time:
+                break
             result = self.make_request(engine, next_query_fn())
             worker_results.append(result)
+            if time.time() >= end_time:
+                break
         return worker_results
 
     def run_all_engines_test(self, engines, duration_seconds, concurrency):
@@ -646,6 +655,11 @@ class SerpAPITester:
                 continue
 
         return all_results, all_statistics
+
+    def _compute_error_rate(self, success_count, total_requests):
+        if total_requests <= 0:
+            return 0
+        return round((total_requests - success_count) / total_requests * 100, 2)
 
     def _calculate_statistics(self, product, engine, results, total_requests,
                               concurrency, total_duration):
@@ -693,7 +707,7 @@ class SerpAPITester:
 
         # 计算请求速率 (请求/秒)
         request_rate = round(total_requests / total_duration, 3) if total_duration > 0 else 0
-        error_rate = round((total_requests - success_count) / total_requests * 100, 2) if total_requests > 0 else 0
+        error_rate = self._compute_error_rate(success_count, total_requests)
 
         # 计算成功请求的平均响应大小
         avg_response_size = 0
@@ -783,15 +797,14 @@ class SerpAPITester:
             statistics: 统计数据列表
         """
         print("\n汇总统计表:")
-        print("-" * 180)
-
-        # 打印表头
         header = f"{'引擎':<20} {'请求数':>8} {'并发':>6} {'速率(req/s)':>12} " \
                  f"{'成功':>8} {'成功率':>8} {'错误率':>8} {'平均响应(s)':>12} " \
                  f"{'P50延迟(s)':>11} {'P75延迟(s)':>11} {'P90延迟(s)':>11} {'P95延迟(s)':>11} {'P99延迟(s)':>11} " \
                  f"{'完成时间(s)':>12} {'响应大小(KB)':>14}"
+        table_width = len(header)
+        print("-" * table_width)
         print(header)
-        print("-" * 180)
+        print("-" * table_width)
 
         # 打印数据行
         for stat in statistics:
@@ -802,7 +815,7 @@ class SerpAPITester:
                   f"{stat['并发完成时间(s)']:>12} {stat['成功平均响应大小(KB)']:>14}"
             print(row)
 
-        print("-" * 180)
+        print("-" * table_width)
 
 
 def main():
