@@ -754,7 +754,22 @@ class SerpAPITester:
         with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
-            writer.writerows(results)
+            formatted_results = []
+            for r in results:
+                row = dict(r)
+                ts = row.get('timestamp')
+                if ts:
+                    try:
+                        # 支持字符串时间戳（含微秒）或数值时间戳
+                        if isinstance(ts, (int, float)):
+                            row['timestamp'] = datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+                        else:
+                            row['timestamp'] = datetime.fromisoformat(str(ts)).strftime('%Y-%m-%d %H:%M:%S')
+                    except Exception:
+                        # 兜底：保持现有格式
+                        row['timestamp'] = str(ts)
+                formatted_results.append(row)
+            writer.writerows(formatted_results)
 
         print(f"  详细记录已保存到: {filename}")
 
