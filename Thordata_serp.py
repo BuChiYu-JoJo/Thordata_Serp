@@ -12,6 +12,7 @@ import argparse
 import concurrent.futures
 import random
 import itertools
+import os
 from urllib.parse import urlencode, urlparse
 from datetime import datetime
 from collections import defaultdict
@@ -774,6 +775,8 @@ class SerpAPITester:
                         row['timestamp'] = str(ts)
                 formatted_results.append(row)
             writer.writerows(formatted_results)
+            csvfile.flush()
+            os.fsync(csvfile.fileno())
 
         print(f"  详细记录已保存到: {filename}")
 
@@ -800,6 +803,8 @@ class SerpAPITester:
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(statistics)
+            csvfile.flush()
+            os.fsync(csvfile.fileno())
 
         print(f"\n{'=' * 80}")
         print(f"汇总统计表已保存到: {filename}")
