@@ -391,12 +391,12 @@ class SerpAPITester:
             path = "/request"
             conn = http.client.HTTPSConnection(self.host, timeout=30)
 
-            start_time = time.time()
+            start_time = time.perf_counter()
             conn.request("POST", path, payload, headers)
 
             response = conn.getresponse()
             data = response.read()
-            end_time = time.time()
+            end_time = time.perf_counter()
 
             result['response_time'] = round(end_time - start_time, 3)
             result['status_code'] = response.status
@@ -545,7 +545,8 @@ class SerpAPITester:
             tuple: (所有请求结果, 总耗时, 总请求数)
         """
         results = []
-        end_time = time.time() + duration_seconds
+        start_monotonic = time.perf_counter()
+        end_time = start_monotonic + duration_seconds
         keyword_source = self.engine_keywords.get(engine, self.keyword_pool) if query is None else None
         special_engines = {"google_lens", "google_flights", "google_trends", "google_hotels", "google_maps"}
         use_round_robin = query is None and engine not in special_engines
@@ -564,10 +565,10 @@ class SerpAPITester:
         print(f"  运行时间: {duration_seconds}秒")
         print(f"  并发数: {concurrency}")
         print(f"  缓存: 禁用 (no_cache=true)")
-        print("-" * 80)
+        print("-" * 80, flush=True)
 
         # 记录并发测试的总开始时间
-        total_start_time = time.time()
+        total_start_time = start_monotonic
 
         # 使用线程池进行并发测试
         with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as executor:
@@ -582,12 +583,12 @@ class SerpAPITester:
                 try:
                     worker_results = future.result()
                     results.extend(worker_results)
-                    print(f"  线程{idx}完成，处理请求数: {len(worker_results)}")
+                    print(f"  线程{idx}完成，处理请求数: {len(worker_results)}", flush=True)
                 except Exception as e:
-                    print(f"  线程 {idx} 异常: {str(e)}")
+                    print(f"  线程 {idx} 异常: {str(e)}", flush=True)
 
         # 记录并发测试的总结束时间
-        total_end_time = time.time()
+        total_end_time = time.perf_counter()
         total_duration = round(total_end_time - total_start_time, 3)
         total_requests = len(results)
 
@@ -600,15 +601,18 @@ class SerpAPITester:
         Worker 线程：在截止时间前持续发送请求，不再新增超时请求
         """
         worker_results = []
-        if time.time() >= end_time:
+        current_time = time.perf_counter()
+        if current_time >= end_time:
             return worker_results
 
         while True:
-            if time.time() >= end_time:
+            current_time = time.perf_counter()
+            if current_time >= end_time:
                 break
             result = self.make_request(engine, next_query_fn())
             worker_results.append(result)
-            if time.time() >= end_time:
+            current_time = time.perf_counter()
+            if current_time >= end_time:
                 break
         return worker_results
 
