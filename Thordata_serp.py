@@ -434,7 +434,7 @@ class SerpAPITester:
             result['success'] = False
             result['error'] = f"Request error: {str(e)}"
             if 'start_time' in locals():
-                result['response_time'] = round(time.time() - start_time, 3)
+                result['response_time'] = round(time.perf_counter() - start_time, 3)
             return result
 
         finally:
