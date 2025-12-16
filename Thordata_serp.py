@@ -653,7 +653,7 @@ class SerpAPITester:
 
                 # 如果启用详细记录，保存CSV
                 if self.save_details:
-                    self._save_detailed_csv(engine, results)
+                    self._save_detailed_csv(engine, results, concurrency)
 
             except Exception as e:
                 print(f"\n引擎 {engine} 测试失败: {str(e)}")
@@ -741,15 +741,46 @@ class SerpAPITester:
 
         return stats
 
-    def _save_detailed_csv(self, engine, results):
+    def _normalize_timestamp_str(self, ts):
+        """
+        将各种格式的时间值标准化为 YYYY-MM-DD HH:MM:SS
+        无法解析时返回空字符串以避免写入错误格式
+        """
+        if ts is None:
+            return ""
+        # 数字时间戳
+        if isinstance(ts, (int, float)):
+            try:
+                return datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+            except Exception:
+                return ""
+        # 字符串或其他
+        s = str(ts).strip()
+        if not s:
+            return ""
+        # 统一分隔符
+        s = s.replace("/", "-")
+        # 补秒
+        if len(s.split(":")) == 2:
+            s = f"{s}:00"
+        try:
+            return datetime.fromisoformat(s).strftime('%Y-%m-%d %H:%M:%S')
+        except Exception:
+            try:
+                return datetime.strptime(s, "%Y-%m-%d %H:%M:%S").strftime('%Y-%m-%d %H:%M:%S')
+            except Exception:
+                return ""
+
+    def _save_detailed_csv(self, engine, results, concurrency):
         """
         保存详细的请求记录到CSV
 
         Args:
             engine: 引擎名称
             results: 请求结果列表
+            concurrency: 并发数，用于文件名区分
         """
-        filename = f"thordata_{engine}_detailed_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        filename = f"thordata_{engine}_c{concurrency}_detailed_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
 
         fieldnames = [
             'timestamp', 'product', 'engine', 'query', 'status_code',
@@ -763,16 +794,8 @@ class SerpAPITester:
             for r in results:
                 row = dict(r)
                 ts = row.get('timestamp')
-                if ts:
-                    try:
-                        # 支持字符串时间戳（含微秒）或数值时间戳
-                        if isinstance(ts, (int, float)):
-                            row['timestamp'] = datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
-                        else:
-                            row['timestamp'] = datetime.fromisoformat(str(ts)).strftime('%Y-%m-%d %H:%M:%S')
-                    except Exception:
-                        # 兜底：保持现有格式
-                        row['timestamp'] = str(ts)
+                normalized_ts = self._normalize_timestamp_str(ts)
+                row['timestamp'] = normalized_ts
                 formatted_results.append(row)
             writer.writerows(formatted_results)
             csvfile.flush()
