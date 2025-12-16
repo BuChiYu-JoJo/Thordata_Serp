@@ -873,6 +873,8 @@ def main():
                         help='每个引擎的运行时间(秒) (默认: 60)')
     parser.add_argument('-c', '--concurrency', type=int, default=5,
                         help='并发数 (默认: 5)')
+    parser.add_argument('--concurrency-steps', type=int, nargs='+',
+                        help='连续执行的并发列表，例如: --concurrency-steps 20 50')
     parser.add_argument('-q', '--query', type=str,
                         help='搜索关键词 (默认: 随机)')
     parser.add_argument('--save-details', action='store_true',
@@ -916,10 +918,19 @@ def main():
     # 创建测试器
     tester = SerpAPITester(args.api_key, save_details=args.save_details)
 
-    # 运行测试
-    all_results, all_statistics = tester.run_all_engines_test(
-        engines, args.duration, args.concurrency
-    )
+    # 运行测试：支持连续并发配置
+    concurrency_list = args.concurrency_steps if args.concurrency_steps else [args.concurrency]
+    all_results = {}
+    all_statistics = []
+
+    for conc in concurrency_list:
+        print(f"\n==== 开始并发 {conc} 的测试 ====", flush=True)
+        results, statistics = tester.run_all_engines_test(
+            engines, args.duration, conc
+        )
+        # 合并结果
+        all_results.update(results)
+        all_statistics.extend(statistics)
 
     # 保存汇总统计
     tester.save_summary_statistics(all_statistics, args.output)
