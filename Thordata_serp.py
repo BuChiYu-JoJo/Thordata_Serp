@@ -4,18 +4,16 @@ SerpAPI Performance Test Script
 Tests SerpAPI service with configurable engines, concurrency, and detailed performance metrics.
 """
 
-import http.client
 import csv
 import time
 import json
 import argparse
 import concurrent.futures
 import random
-from urllib.parse import urlencode, urlparse
 from datetime import datetime
 from collections import defaultdict
-import ssl
 import math
+import requests
 
 
 class SerpAPITester:
@@ -350,17 +348,17 @@ class SerpAPITester:
             'response_size': None,
             'success': False,
             'error': '',
-            'response_excerpt': ''
+            'response_excerpt': '',
+            'log': ''
         }
 
-        conn = None
         #Thordata的请求方式
         try:
             params = {
                 "engine": engine,
                 "json": "1",
                 "no_cache": "true",
-                "isjson": "1"               
+                "isjson": "1"
             }
 
             # 根据不同引擎处理查询参数
@@ -382,8 +380,6 @@ class SerpAPITester:
                 # 默认使用 q 参数（其他新增引擎如 bing/duckduckgo 使用默认 q）
                 params["q"] = query
 
-            payload = urlencode(params)
-
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/x-www-form-urlencoded"
@@ -391,43 +387,53 @@ class SerpAPITester:
 
 #            path = "/request"
             path = "/request_testasdadsa"
-            conn = http.client.HTTPSConnection(self.host, timeout=150)
+            url = f"https://{self.host}{path}"
 
             start_time = time.time()
-            conn.request("POST", path, payload, headers)
-
-            response = conn.getresponse()
-            data = response.read()
+            response = requests.post(url, data=params, headers=headers, timeout=150)
+            data = response.content
             end_time = time.time()
 
             result['response_time'] = round(end_time - start_time, 3)
-            result['status_code'] = response.status
+            result['status_code'] = response.status_code
             result['response_size'] = round(len(data) / 1024, 3)
 
             # ---- ★ 修复：Thordata 响应是 JSON 字符串，需要 double JSON decode ★ ----
-            text = data.decode("utf-8", errors="ignore")
+            text = response.text
             result['response_excerpt'] = text[:1000]
 
             try:
-                # 第一次解析：从原始文本 -> JSON 字符串
-                first_parsed = json.loads(text)
-
-                # 如果结果仍是字符串，说明还需要第二次解析
-                if isinstance(first_parsed, str):
-                    response_json = json.loads(first_parsed)
-                else:
-                    response_json = first_parsed
-
+                response_payload = response.json()
             except Exception as e:
                 result['success'] = False
                 result['error'] = f"Non-JSON response: {str(e)}"
                 return result
 
+            response_json = {}
+            if isinstance(response_payload, dict):
+                result['log'] = response_payload.get("log", "")
+                data_field = response_payload.get("data")
+                if isinstance(data_field, dict):
+                    result_field = data_field.get("result")
+                    if isinstance(result_field, str):
+                        try:
+                            response_json = json.loads(result_field)
+                        except Exception:
+                            response_json = {}
+                    elif isinstance(result_field, dict):
+                        response_json = result_field
+                    elif isinstance(data_field, dict):
+                        response_json = data_field
+
             # ---- ★ JSON 一定是 dict，到这里保持 dict，不再覆盖 ★ ----
-            result['success'] = self._is_response_successful(response_json, response.status)
+            result['success'] = self._is_response_successful(
+                response_json,
+                response.status_code,
+                response_payload
+            )
 
             if not result['success']:
-                result['error'] = self._extract_error_message(response_json)
+                result['error'] = self._extract_error_message(response_json, response_payload)
 
             return result
 
@@ -438,17 +444,18 @@ class SerpAPITester:
                 result['response_time'] = round(time.time() - start_time, 3)
             return result
 
-        finally:
-            if conn:
-                conn.close()
-
         return result
 
-    def _is_response_successful(self, response_json, status_code):
+    def _is_response_successful(self, response_json, status_code, outer_response=None):
 
         # HTTP 必须是 200
         if status_code != 200:
             return False
+
+        if isinstance(outer_response, dict):
+            outer_code = outer_response.get("code")
+            if outer_code not in (None, 200):
+                return False
 
         # Thordata 成功标记
         if response_json.get("search_metadata", {}).get("status") == "Success":
@@ -467,7 +474,16 @@ class SerpAPITester:
         ]
         return any(field in response_json for field in result_fields)
 
-    def _extract_error_message(self, response_json):
+    def _extract_error_message(self, response_json, outer_response=None):
+
+        if isinstance(outer_response, dict):
+            if "error" in outer_response:
+                return outer_response["error"]
+            if outer_response.get("code") not in (None, 200):
+                log_value = outer_response.get("log")
+                if log_value:
+                    return log_value
+                return f"code:{outer_response.get('code')}"
 
         if isinstance(response_json, dict):
 
@@ -723,7 +739,8 @@ class SerpAPITester:
 
         fieldnames = [
             'timestamp', 'product', 'engine', 'query', 'status_code',
-            'response_time', 'response_size', 'success', 'error', 'response_excerpt'
+            'response_time', 'response_size', 'success', 'error', 'response_excerpt',
+            'log'
         ]
 
         with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
