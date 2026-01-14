@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 SerpAPI Performance Test Script
+ 
 Tests SerpAPI service with configurable engines, concurrency, and detailed performance metrics.
 """
 
@@ -10,6 +11,7 @@ import time
 import json
 import argparse
 import concurrent.futures
+import random
 from urllib.parse import urlencode, urlparse
 from datetime import datetime
 from collections import defaultdict
@@ -20,10 +22,20 @@ import math
 class SerpAPITester:
     """SerpAPI性能测试类"""
 
-    # SerpAPI支持的所有引擎
+    # SerpAPI支持的所有引擎（与最新分支保持一致）
     SUPPORTED_ENGINES = [
-        'google', 'google_local', 'google_images',
-        'google_videos', 'google_news', 'google_shopping'
+        'google', 'google_local', 'google_images', 'google_videos',
+        'google_news', 'google_shopping', 'google_play', 'google_jobs',
+        'google_scholar', 'google_finance', 'google_patents', 'google_lens',
+        'google_flights', 'google_trends', 'google_hotels', 'google_maps',
+        'google_ai_mode',
+ 'google_web',
+
+        # 新增通用搜索引擎支持（使用默认参数池/默认行为）
+        'bing', 'bing_images', 'bing_videos', 'bing_news',
+        'bing_maps', 'bing_shopping',
+
+        'yandex', 'duckduckgo'
     ]
 
     def __init__(self, api_key, save_details=False):
@@ -36,7 +48,9 @@ class SerpAPITester:
         """
         self.api_key = api_key
         self.host = "scraperapi.thordata.com"
+
         self.save_details = save_details
+        # 默认关键词池，当引擎未配置专属关键词时回退使用
         self.keyword_pool = [
             "pizza", "coffee", "restaurant", "weather", "news",
             "hotel", "flight", "car", "phone", "laptop",
@@ -60,6 +74,263 @@ class SerpAPITester:
             "books best seller", "novels", "ebooks"
         ]
 
+        # 参考 SerpApi 测试脚本：为不同引擎配置更贴合场景的关键词
+        self.engine_keywords = {
+            "google_play": [
+                "productivity app", "fitness tracker app",
+                "photo editor", "music streaming app", "language learning app",
+                "budget tracker", "habit tracker", "calendar app",
+                "travel planner app", "weather forecast app"
+            ],
+            "google_jobs": [
+                "software engineer", "data scientist", "product manager",
+                "ux designer", "marketing manager", "cloud architect",
+                "devops engineer", "qa engineer", "project manager",
+                "accountant"
+            ],
+            "google_scholar": [
+                "machine learning", "quantum computing", "climate change",
+                "computer vision", "natural language processing",
+                "renewable energy", "graph neural networks",
+                "blockchain security", "genome sequencing", "edge computing"
+            ],
+            "google_finance": [
+                "AAPL stock", "TSLA stock", "MSFT stock",
+                "GOOGL stock", "AMZN stock", "NVDA stock",
+                "USD to EUR", "NASDAQ index", "Dow Jones",
+                "S&P 500"
+            ],
+            "google_patents": [
+                "electric vehicle battery", "solar panel efficiency",
+                "3d printing metal", "autonomous driving system",
+                "drone delivery", "medical imaging device",
+                "wireless charging", "vr headset optics",
+                "robotic arm control", "quantum encryption"
+            ],
+            "google_lens": [
+                "https://i.imgur.com/HBrB8p0.png",
+                "https://picsum.photos/800/500",
+                "https://picsum.photos/600/400",
+                "https://picsum.photos/300/300",
+                "https://picsum.photos/1200/800",
+                "https://picsum.photos/1080/720",
+                "https://loremflickr.com/800/600",
+                "https://loremflickr.com/640/480",
+                "https://loremflickr.com/1024/768",
+                "https://loremflickr.com/500/600",
+                "https://loremflickr.com/1200/900",
+                "https://images.unsplash.com/photo-1503023345310-bd7c1de61c7d",
+                "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e",
+                "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee",
+                "https://images.unsplash.com/photo-1519682577862-22b62b24e493",
+                "https://images.unsplash.com/photo-1524504388940-b1c1722653e1"
+            ],
+            "google_flights": [
+                {
+                    "hl": "en",
+                    "gl": "us",
+                    "departure_id": "PEK",
+                    "arrival_id": "AUS",
+                    "outbound_date": "2025-12-07",
+                    "return_date": "2025-12-09",
+                    "currency": "USD"
+                },
+                {
+                    "hl": "en",
+                    "gl": "us",
+                    "departure_id": "PEK",
+                    "arrival_id": "AUS",
+                    "outbound_date": "2025-12-08",
+                    "return_date": "2025-12-10",
+                    "currency": "USD"
+                },
+                {
+                    "hl": "en",
+                    "gl": "us",
+                    "departure_id": "PEK",
+                    "arrival_id": "AUS",
+                    "outbound_date": "2025-12-09",
+                    "return_date": "2025-12-11",
+                    "currency": "USD"
+                },
+                {
+                    "hl": "en",
+                    "gl": "us",
+                    "departure_id": "PEK",
+                    "arrival_id": "AUS",
+                    "outbound_date": "2025-12-11",
+                    "return_date": "2025-12-13",
+                    "currency": "USD"
+                },
+                {
+                    "hl": "en",
+                    "gl": "us",
+                    "departure_id": "PEK",
+                    "arrival_id": "AUS",
+                    "outbound_date": "2025-12-13",
+                    "return_date": "2025-12-15",
+                    "currency": "USD"
+                },
+                {
+                    "hl": "en",
+                    "gl": "us",
+                    "departure_id": "PEK",
+                    "arrival_id": "AUS",
+                    "outbound_date": "2025-12-27",
+                    "return_date": "2025-12-30",
+                    "currency": "USD"
+                },
+                {
+                    "hl": "en",
+                    "gl": "us",
+                    "departure_id": "PEK",
+                    "arrival_id": "AUS",
+                    "outbound_date": "2025-12-07",
+                    "return_date": "2025-12-15",
+                    "currency": "USD"
+                }
+            ],
+            "google_hotels": [
+                {
+                    "q": "Bali Resorts",
+                    "check_in_date": "2025-12-17",
+                    "check_out_date": "2025-12-18"
+                },
+                {
+                    "q": "Tokyo luxury hotels",
+                    "check_in_date": "2025-12-15",
+                    "check_out_date": "2025-12-20"
+                },
+                {
+                    "q": "New York boutique hotels",
+                    "check_in_date": "2025-12-22",
+                    "check_out_date": "2025-12-26"
+                },
+                {
+                    "q": "Paris family hotels",
+                    "check_in_date": "2026-01-05",
+                    "check_out_date": "2026-01-09"
+                },
+                {
+                    "q": "Sydney beach resorts",
+                    "check_in_date": "2026-02-10",
+                    "check_out_date": "2026-02-15"
+                }
+            ],
+            "google_trends": [
+                {
+                    "q": "coffee",
+                    "data_type": "TIMESERIES"
+                },
+                {
+                    "q": "milk",
+                    "data_type": "TIMESERIES"
+                },
+                {
+                    "q": "bread",
+                    "data_type": "TIMESERIES"
+                },
+                {
+                    "q": "pasta",
+                    "data_type": "TIMESERIES"
+                },
+                {
+                    "q": "steak",
+                    "data_type": "TIMESERIES"
+                },
+                {
+                    "q": "ai",
+                    "data_type": "TIMESERIES"
+                },
+                {
+                    "q": "vr",
+                    "data_type": "TIMESERIES"
+                },
+                {
+                    "q": "5g",
+                    "data_type": "TIMESERIES"
+                },
+                {
+                    "q": "cloud",
+                    "data_type": "TIMESERIES"
+                },
+                {
+                    "q": "python,java",
+                    "data_type": "TIMESERIES"
+                },
+                {
+                    "q": "go,rust",
+                    "data_type": "TIMESERIES"
+                },
+                {
+                    "q": "nba,ufc",
+                    "data_type": "TIMESERIES"
+                },
+                {
+                    "q": "bitcoin",
+                    "data_type": "TIMESERIES"
+                }
+            ],
+            "google_maps": [
+                {
+                    "q": "pizza",
+                    "type": "search"
+                },
+                {
+                    "q": "coffee",
+                    "type": "search"
+                },
+                {
+                    "q": "restaurant",
+                    "type": "search"
+                },
+                {
+                    "q": "hotel",
+                    "type": "search"
+                },
+                {
+                    "q": "gym",
+                    "type": "search"
+                }
+            ],
+            # bing_maps 关键词池：单个词（不再是组合短语）
+            "bing_maps": [
+                "restaurant",
+                "coffee",
+                "gas",
+                "hospital",
+                "parking",
+                "ev",
+                "theater",
+                "gym",
+                "hotels",
+                "museums",
+                "transit",
+                "pharmacy",
+                "airport",
+                "mall",
+                "bike"
+            ],
+            # bing_shopping 关键词池：单个词商品/品牌/类目
+            "bing_shopping": [
+                "headphones",
+                "tv",
+                "laptop",
+                "nike",
+                "smartphone",
+                "bicycle",
+                "coffee",
+                "chair",
+                "camera",
+                "stroller",
+                "beans",
+                "jacket",
+                "sneakers",
+                "smartwatch",
+                "charger"
+            ]
+        }
+
     def make_request(self, engine, query):
         """
         发送单个API请求并测量准确的响应时间
@@ -73,9 +344,9 @@ class SerpAPITester:
         """
         result = {
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'product': 'SerpAPI',
+            'product': 'Thordata',
             'engine': engine,
-            'query': query,
+            'query': json.dumps(query, ensure_ascii=False) if isinstance(query, dict) else query,
             'status_code': None,
             'response_time': None,
             'response_size': None,
@@ -89,10 +360,29 @@ class SerpAPITester:
         try:
             params = {
                 "engine": engine,
-                "q": query,
                 "json": "1",
                 "no_cache": "true"
             }
+
+            # 根据不同引擎处理查询参数
+            if engine == "google_lens":
+                params["url"] = query
+            # yandex 使用 text 参数
+            elif engine == "yandex":
+                params["text"] = query
+            # 以下引擎需要 dict 型 query 并将其展开为参数
+            elif engine in {"google_flights", "google_trends", "google_hotels", "google_maps"}:
+                if not isinstance(query, dict):
+                    raise ValueError(f"{engine} 查询参数必须为字典类型")
+                if engine in {"google_trends", "google_hotels"} and not query.get("q"):
+                    raise ValueError(f"{engine} 参数缺少必填项: q")
+                if engine == "google_maps" and not query.get("type"):
+                    raise ValueError(f"{engine} 参数缺少必填项: type")
+                params.update(query)
+            else:
+                # 默认使用 q 参数（其他新增引擎如 bing/duckduckgo 使用默认 q）
+                params["q"] = query
+
             payload = urlencode(params)
 
             headers = {
@@ -101,7 +391,8 @@ class SerpAPITester:
             }
 
             path = "/request"
-            conn = http.client.HTTPSConnection(self.host, timeout=30)
+            
+            conn = http.client.HTTPSConnection(self.host, timeout=150)
 
             start_time = time.time()
             conn.request("POST", path, payload, headers)
@@ -185,6 +476,26 @@ class SerpAPITester:
             if "error" in response_json:
                 return response_json["error"]
 
+            # 部分接口会将错误信息放在 data 字段
+            if "data" in response_json:
+                data_value = response_json["data"]
+                code_value = response_json.get("code")
+
+                def _to_string(value):
+                    if isinstance(value, (str, int, float)):
+                        return str(value)
+                    try:
+                        return json.dumps(value, ensure_ascii=False)
+                    except Exception:
+                        return None
+
+                data_message = _to_string(data_value)
+
+                if data_message and code_value is not None:
+                    return f"code:{code_value}, {data_message}"
+                if data_message:
+                    return data_message
+
             # 非成功：检查 search_metadata 状态
             status = response_json.get("search_metadata", {}).get("status")
             if status and status != "Success":
@@ -238,13 +549,16 @@ class SerpAPITester:
         """
         results = []
 
-        # 如果未指定query，使用随机关键词
+        # 如果未指定query，按引擎配置选择关键词
         queries = []
         if query:
             queries = [query] * num_requests
         else:
-            # 循环使用关键词池
-            queries = [self.keyword_pool[i % len(self.keyword_pool)] for i in range(num_requests)]
+            keyword_source = self.engine_keywords.get(engine, self.keyword_pool)
+            if engine in {"google_lens", "google_flights", "google_trends", "google_hotels", "google_maps"}:
+                queries = [random.choice(keyword_source) for _ in range(num_requests)]
+            else:
+                queries = [keyword_source[i % len(keyword_source)] for i in range(num_requests)]
 
         print(f"\n开始测试引擎: {engine}")
         print(f"  总请求数: {num_requests}")
@@ -316,7 +630,7 @@ class SerpAPITester:
 
                 # 计算统计数据
                 stats = self._calculate_statistics(
-                    'SerpAPI', engine, results, num_requests_per_engine,
+                    'Thordata', engine, results, num_requests_per_engine,
                     concurrency, total_duration
                 )
                 all_statistics.append(stats)
@@ -351,21 +665,28 @@ class SerpAPITester:
             total_time = sum(r['response_time'] for r in successful_results if r['response_time'])
             avg_response_time = round(total_time / len(successful_results), 3)
 
-        # 计算P90延迟 (90th percentile)
+        # 计算P50、P75、P90延迟
+        p50_latency = 0
+        p75_latency = 0
         p90_latency = 0
         if successful_results:
             response_times = sorted([r['response_time'] for r in successful_results if r['response_time']])
             if response_times:
-                # 使用ceil(0.9 × N)计算P90索引
-                p90_index = math.ceil(len(response_times) * 0.9) - 1  # -1因为索引从0开始
-                if p90_index < 0:
-                    p90_index = 0
-                if p90_index >= len(response_times):
-                    p90_index = len(response_times) - 1
-                p90_latency = round(response_times[p90_index], 3)
+                # 使用ceil计算百分位索引
+                def get_percentile_value(times, percentile):
+                    index = math.ceil(len(times) * percentile) - 1  # -1因为索引从0开始
+                    if index < 0:
+                        index = 0
+                    if index >= len(times):
+                        index = len(times) - 1
+                    return round(times[index], 3)
 
-        # 计算请求速率 (秒/请求)
-        request_rate = round(total_duration / total_requests, 3) if total_requests > 0 else 0
+                p50_latency = get_percentile_value(response_times, 0.5)
+                p75_latency = get_percentile_value(response_times, 0.75)
+                p90_latency = get_percentile_value(response_times, 0.9)
+
+        # 计算请求速率 (请求/秒)
+        request_rate = round(total_requests / total_duration, 3) if total_duration > 0 else 0
 
         # 计算成功请求的平均响应大小
         avg_response_size = 0
@@ -378,10 +699,12 @@ class SerpAPITester:
             '引擎': engine,
             '请求总数': total_requests,
             '并发数': concurrency,
-            '请求速率(s/req)': request_rate,
+            '请求速率(req/s)': request_rate,
             '成功次数': success_count,
             '成功率(%)': success_rate,
             '成功平均响应时间(s)': avg_response_time,
+            'P50延迟(s)': p50_latency,
+            'P75延迟(s)': p75_latency,
             'P90延迟(s)': p90_latency,
             '并发完成时间(s)': total_duration,
             '成功平均响应大小(KB)': avg_response_size
@@ -397,7 +720,7 @@ class SerpAPITester:
             engine: 引擎名称
             results: 请求结果列表
         """
-        filename = f"serpapi_{engine}_detailed_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        filename = f"thordata_{engine}_detailed_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
 
         fieldnames = [
             'timestamp', 'product', 'engine', 'query', 'status_code',
@@ -411,7 +734,7 @@ class SerpAPITester:
 
         print(f"  详细记录已保存到: {filename}")
 
-    def save_summary_statistics(self, statistics, filename='serpapi_summary_statistics.csv'):
+    def save_summary_statistics(self, statistics, filename='thordata_summary_statistics.csv'):
         """
         保存汇总统计表
 
@@ -424,8 +747,8 @@ class SerpAPITester:
             return
 
         fieldnames = [
-            '产品类别', '引擎', '请求总数', '并发数', '请求速率(s/req)',
-            '成功次数', '成功率(%)', '成功平均响应时间(s)', 'P90延迟(s)',
+            '产品类别', '引擎', '请求总数', '并发数', '请求速率(req/s)',
+            '成功次数', '成功率(%)', '成功平均响应时间(s)', 'P50延迟(s)', 'P75延迟(s)', 'P90延迟(s)',
             '并发完成时间(s)', '成功平均响应大小(KB)'
         ]
 
@@ -449,23 +772,23 @@ class SerpAPITester:
             statistics: 统计数据列表
         """
         print("\n汇总统计表:")
-        print("-" * 160)
+        print("-" * 180)
 
         # 打印表头
-        header = f"{'引擎':<20} {'请求数':>8} {'并发':>6} {'速率(s/req)':>12} " \
-                 f"{'成功':>8} {'成功率':>8} {'平均响应(s)':>12} {'P90延迟(s)':>11} {'完成时间(s)':>12} {'响应大小(KB)':>14}"
+        header = f"{'引擎':<20} {'请求数':>8} {'并发':>6} {'速率(req/s)':>12} " \
+                 f"{'成功':>8} {'成功率':>8} {'平均响应(s)':>12} {'P50延迟(s)':>11} {'P75延迟(s)':>11} {'P90延迟(s)':>11} {'完成时间(s)':>12} {'响应大小(KB)':>14}"
         print(header)
-        print("-" * 160)
+        print("-" * 180)
 
         # 打印数据行
         for stat in statistics:
             row = f"{stat['引擎']:<20} {stat['请求总数']:>8} {stat['并发数']:>6} " \
-                  f"{stat['请求速率(s/req)']:>12} {stat['成功次数']:>8} " \
+                  f"{stat['请求速率(req/s)']:>12} {stat['成功次数']:>8} " \
                   f"{stat['成功率(%)']:>7}% {stat['成功平均响应时间(s)']:>12} " \
-                  f"{stat['P90延迟(s)']:>11} {stat['并发完成时间(s)']:>12} {stat['成功平均响应大小(KB)']:>14}"
+                  f"{stat['P50延迟(s)']:>11} {stat['P75延迟(s)']:>11} {stat['P90延迟(s)']:>11} {stat['并发完成时间(s)']:>12} {stat['成功平均响应大小(KB)']:>14}"
             print(row)
 
-        print("-" * 160)
+        print("-" * 180)
 
 
 def main():
