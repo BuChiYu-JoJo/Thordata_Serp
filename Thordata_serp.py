@@ -12,11 +12,9 @@ import json
 import argparse
 import concurrent.futures
 import random
-from urllib.parse import urlencode, urlparse
 from datetime import datetime
-from collections import defaultdict
-import ssl
 import math
+import os
 
 
 class SerpAPITester:
@@ -38,7 +36,7 @@ class SerpAPITester:
         'yandex', 'duckduckgo'
     ]
 
-    def __init__(self, api_key, save_details=False):
+    def __init__(self, api_key, save_details=False, save_response=False, response_dir="responses"):
         """
         初始化SerpAPI测试器
 
@@ -47,9 +45,11 @@ class SerpAPITester:
             save_details: 是否保存每个请求的详细CSV记录
         """
         self.api_key = api_key
-        self.host = "scraperapi.thordata.com"
+        self.host = "google.serper.dev"
 
         self.save_details = save_details
+        self.save_response = save_response
+        self.response_dir = response_dir
         # 默认关键词池，当引擎未配置专属关键词时回退使用
         self.keyword_pool = [
             "pizza", "coffee", "restaurant", "weather", "news",
@@ -352,50 +352,29 @@ class SerpAPITester:
             'response_size': None,
             'success': False,
             'error': '',
-            'response_excerpt': ''
+            'response_excerpt': '',
+            'response_file': ''
         }
 
         conn = None
         #Thordata的请求方式
         try:
-            params = {
-                "engine": engine,
-                "json": "1",
-                "no_cache": "true"
-            }
-
-            # 根据不同引擎处理查询参数
-            if engine == "google_lens":
-                params["url"] = query
-            # yandex 使用 text 参数
-            elif engine == "yandex":
-                params["text"] = query
-            # 以下引擎需要 dict 型 query 并将其展开为参数
-            elif engine in {"google_flights", "google_trends", "google_hotels", "google_maps"}:
-                if not isinstance(query, dict):
-                    raise ValueError(f"{engine} 查询参数必须为字典类型")
-                if engine in {"google_trends", "google_hotels"} and not query.get("q"):
-                    raise ValueError(f"{engine} 参数缺少必填项: q")
-                if engine == "google_maps" and not query.get("type"):
-                    raise ValueError(f"{engine} 参数缺少必填项: type")
-                params.update(query)
+            if isinstance(query, dict):
+                payload = query
             else:
-                # 默认使用 q 参数（其他新增引擎如 bing/duckduckgo 使用默认 q）
-                params["q"] = query
-
-            payload = urlencode(params)
+                payload = {"q": query}
 
             headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/x-www-form-urlencoded"
+                "X-API-KEY": self.api_key,
+                "Content-Type": "application/json"
             }
 
-            path = "/request"
+            path = "/search"
             
             conn = http.client.HTTPSConnection(self.host, timeout=150)
 
             start_time = time.time()
-            conn.request("POST", path, payload, headers)
+            conn.request("POST", path, json.dumps(payload), headers)
 
             response = conn.getresponse()
             data = response.read()
@@ -429,6 +408,8 @@ class SerpAPITester:
 
             if not result['success']:
                 result['error'] = self._extract_error_message(response_json)
+            elif self.save_response:
+                result['response_file'] = self._save_response_file(engine, query, text)
 
             return result
 
@@ -451,28 +432,18 @@ class SerpAPITester:
         if status_code != 200:
             return False
 
-        # Thordata 成功标记
-        if response_json.get("search_metadata", {}).get("status") == "Success":
-            return True
-
-        # SerpAPI 风格字段兼容
-        result_fields = [
-            "organic_results",
-            "shopping_results",
-            "news_results",
-            "images_results",
-            "videos_results",
-            "local_results",
-            "ai_overview",
-            "search_information",
-        ]
-        return any(field in response_json for field in result_fields)
+        return isinstance(response_json, dict) and "credits" in response_json
 
     def _extract_error_message(self, response_json):
 
         if isinstance(response_json, dict):
 
-            # Thordata 的错误字段（只有失败情况才会出现）
+            if "message" in response_json:
+                status_code = response_json.get("statusCode")
+                if status_code is not None:
+                    return f"{response_json['message']} (statusCode: {status_code})"
+                return response_json["message"]
+
             if "error" in response_json:
                 return response_json["error"]
 
@@ -495,11 +466,6 @@ class SerpAPITester:
                     return f"code:{code_value}, {data_message}"
                 if data_message:
                     return data_message
-
-            # 非成功：检查 search_metadata 状态
-            status = response_json.get("search_metadata", {}).get("status")
-            if status and status != "Success":
-                return f"Status: {status}"
 
             return "No error field found"
 
@@ -724,7 +690,8 @@ class SerpAPITester:
 
         fieldnames = [
             'timestamp', 'product', 'engine', 'query', 'status_code',
-            'response_time', 'response_size', 'success', 'error', 'response_excerpt'
+            'response_time', 'response_size', 'success', 'error', 'response_excerpt',
+            'response_file'
         ]
 
         with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
@@ -733,6 +700,16 @@ class SerpAPITester:
             writer.writerows(results)
 
         print(f"  详细记录已保存到: {filename}")
+
+    def _save_response_file(self, engine, query, response_text):
+        os.makedirs(self.response_dir, exist_ok=True)
+        safe_engine = engine.replace("/", "_")
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+        filename = f"{safe_engine}_{timestamp}.json"
+        filepath = os.path.join(self.response_dir, filename)
+        with open(filepath, 'w', encoding='utf-8') as file:
+            file.write(response_text)
+        return filepath
 
     def save_summary_statistics(self, statistics, filename='thordata_summary_statistics.csv'):
         """
@@ -826,6 +803,10 @@ def main():
                         help='搜索关键词 (默认: 随机)')
     parser.add_argument('--save-details', action='store_true',
                         help='保存每个请求的详细CSV记录')
+    parser.add_argument('--save-response', action='store_true',
+                        help='保存每个请求的响应内容到本地文件')
+    parser.add_argument('--response-dir', type=str, default='responses',
+                        help='响应内容保存目录 (默认: responses)')
     parser.add_argument('-o', '--output', type=str,
                         default='serpapi_summary_statistics.csv',
                         help='汇总统计表输出文件名')
@@ -863,7 +844,12 @@ def main():
         return
 
     # 创建测试器
-    tester = SerpAPITester(args.api_key, save_details=args.save_details)
+    tester = SerpAPITester(
+        args.api_key,
+        save_details=args.save_details,
+        save_response=args.save_response,
+        response_dir=args.response_dir
+    )
 
     # 运行测试
     all_results, all_statistics = tester.run_all_engines_test(
